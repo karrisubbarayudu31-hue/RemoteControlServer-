@@ -10,7 +10,7 @@ from flask_socketio import SocketIO, join_room, emit
 # Initialize Flask and SocketIO
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'super_secret_remote_key_123'
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, cors_allowed_origins="*", ping_timeout=60, ping_interval=25)
 
 # Suppress standard Flask logging for cleaner output
 log = logging.getLogger('werkzeug')
