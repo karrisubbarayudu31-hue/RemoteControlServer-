@@ -13,6 +13,8 @@ import pyautogui
 
 # Tell PyAutoGUI not to gracefully fail, we want silent brute force
 pyautogui.FAILSAFE = False
+# Remove artificial delays in PyAutoGUI to eliminate input lag
+pyautogui.PAUSE = 0
 
 # ---------------------------------------------------------
 # Configuration
@@ -128,15 +130,15 @@ def start_streaming():
                 sct_img = sct.grab(monitor)
                 img = np.array(sct_img)
                 
-                # 2. HD Screen Upgrade (100% resolution, 80% JPEG quality)
-                # We no longer shrink the resolution to 50% size.
-                scale_percent = 100 
+                # 2. Balanced Screen Upgrade (75% resolution, 75% JPEG quality)
+                # Full 100% resolution HD backs up the WebSocket queue and causes input lag.
+                scale_percent = 75 
                 width = int(img.shape[1] * scale_percent / 100)
                 height = int(img.shape[0] * scale_percent / 100)
                 resized = cv2.resize(img, (width, height), interpolation=cv2.INTER_AREA)
                 
                 # Compress just enough for the WebSocket to handle the bandwidth
-                encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 80]
+                encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 75]
                 _, buffer = cv2.imencode('.jpg', resized, encode_param)
                 
                 # 3. Convert image to Base64 text to send over WebSocket
@@ -145,8 +147,8 @@ def start_streaming():
                 # 4. Stream frame to Server
                 sio.emit('video_frame', {'client_id': CLIENT_ID, 'frame': jpg_as_text})
                 
-                # Limit to roughly 15 frames per second
-                time.sleep(1/15)
+                # Limit to roughly 15 frames per second to allow input events to be processed
+                sio.sleep(0.06)
                 
             except Exception as e:
                 # Silently ignore frame drops to keep running
