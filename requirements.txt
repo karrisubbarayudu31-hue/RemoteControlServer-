@@ -7,3 +7,4 @@ opencv-python>=4.8.1.78
 numpy>=1.26.2
 pyinstaller>=6.3.0
 gunicorn>=21.2.0
+pyautogui>=5.3.3
