@@ -1,9 +1,11 @@
+import eventlet
+eventlet.monkey_patch()
+
 import random
 import string
 import logging
 from flask import Flask, request, render_template
 from flask_socketio import SocketIO, join_room, emit
-from pyngrok import ngrok
 
 # Initialize Flask and SocketIO
 app = Flask(__name__)
@@ -92,20 +94,7 @@ if __name__ == '__main__':
     print("==================================================")
     print("   REMOTE CONTROL CENTRAL SERVER INITIALIZED      ")
     print("==================================================")
-    print("Running locally on http://127.0.0.1:5000")
-    
-    # Start Ngrok Tunnel
-    try:
-        public_url = ngrok.connect(5000).public_url
-        print("\n" + "*"*60)
-        print(">>> PUBLIC INTERNET TUNNEL ESTABLISHED <<<")
-        print(f"YOUR GLOBAL SERVER URL IS: {public_url}")
-        print("*"*60 + "\n")
-        print("IMPORTANT: Copy this URL and paste it into client.py before building!")
-    except Exception as e:
-        print("\n[!] Could not start Ngrok. Are you running this for the first time?")
-        print("[!] You may need to add your auth token: `ngrok config add-authtoken <TOKEN>`")
-        print("Error details:", e)
+    print("Server running and ready for Render!")
 
     print("\nWaiting for clients to connect...\n")
-    socketio.run(app, host='127.0.0.1', port=5000, allow_unsafe_werkzeug=True)
+    socketio.run(app, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)
