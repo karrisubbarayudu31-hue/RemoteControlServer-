@@ -1,0 +1,9 @@
+Flask>=3.0.0
+Flask-SocketIO>=5.3.6
+eventlet>=0.33.3
+python-socketio[client]>=5.10.0
+mss>=9.0.1
+opencv-python>=4.8.1.78
+numpy>=1.26.2
+pyinstaller>=6.3.0
+gunicorn>=21.2.0
